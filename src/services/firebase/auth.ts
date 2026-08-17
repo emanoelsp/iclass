@@ -34,9 +34,24 @@ export async function login(email: string, senha: string): Promise<User> {
   return cred.user
 }
 
+// Códigos de erro do Firebase que indicam que o usuário simplesmente fechou o popup
+const POPUP_DISMISSED = ['popup-closed-by-user', 'popup-blocked', 'cancelled-popup-request', 'popup-timeout']
+
+export function isPopupDismissed(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return POPUP_DISMISSED.some(code => msg.includes(code))
+}
+
 export async function loginComGoogle(): Promise<{ user: User; isNovo: boolean }> {
   const provider = new GoogleAuthProvider()
-  const cred = await signInWithPopup(auth, provider)
+  provider.setCustomParameters({ prompt: 'select_account' })
+
+  // Timeout de 2 minutos — evita que o app fique travado se o popup não fechar
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('popup-timeout')), 120_000)
+  )
+
+  const cred = await Promise.race([signInWithPopup(auth, provider), timeout])
   const snap = await getDoc(doc(db, 'users', cred.user.uid))
   return { user: cred.user, isNovo: !snap.exists() }
 }

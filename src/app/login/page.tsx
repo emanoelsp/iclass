@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { login, buscarPerfil, loginComGoogle, criarPerfilGoogle } from '@/services/firebase/auth'
+import { login, buscarPerfil, loginComGoogle, criarPerfilGoogle, isPopupDismissed } from '@/services/firebase/auth'
 import { UserRole } from '@/types'
 import { User } from 'firebase/auth'
 
@@ -106,8 +106,7 @@ export default function LoginPage() {
         router.replace(perfil?.role === 'professor' ? '/admin' : '/aluno')
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : ''
-      if (!msg.includes('popup-closed')) setErro('Erro ao entrar com Google. Tente novamente.')
+      if (!isPopupDismissed(err)) setErro('Erro ao entrar com Google. Tente novamente.')
     } finally {
       setGoogleCarregando(false)
     }
