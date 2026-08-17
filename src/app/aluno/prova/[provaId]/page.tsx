@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { buscarProva, buscarSubmissaoAtiva, iniciarSubmissao, submeterProva } from '@/services/firebase/firestore'
 import { Prova, QuestionAnswer, Question, AnswerValue } from '@/types'
 import QuestionRenderer from '@/components/questions/QuestionRenderer'
+import OnboardingProva from '@/components/OnboardingProva'
+import { introsProvas } from '@/data/introProvas'
 
 function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number {
   let total = 0
@@ -46,6 +48,8 @@ function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number
   return Math.round(total * 10) / 10
 }
 
+type Fase = 'carregando' | 'intro' | 'prova' | 'resultado'
+
 export default function ProvaPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -59,11 +63,10 @@ export default function ProvaPage() {
   const [prova, setProva] = useState<Prova | null>(null)
   const [submissaoId, setSubmissaoId] = useState<string | null>(null)
   const [respostas, setRespostas] = useState<QuestionAnswer[]>([])
-  const [carregando, setCarregando] = useState(true)
+  const [fase, setFase] = useState<Fase>('carregando')
   const [submetendo, setSubmetendo] = useState(false)
-  const [submetida, setSubmetida] = useState(false)
   const [notaFinal, setNotaFinal] = useState<number | null>(null)
-  const [segundos, setSegundos] = useState<number | null>(null)
+  const [iniciando, setIniciando] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -73,26 +76,36 @@ export default function ProvaPage() {
         buscarProva(provaId),
         buscarSubmissaoAtiva(perfil!.uid, provaId, turmaId),
       ])
-      if (!p) { setCarregando(false); return }
+      if (!p) { setFase('prova'); return }
       setProva(p)
 
       if (sub) {
         setSubmissaoId(sub.id)
         setRespostas(sub.respostas ?? [])
         if (sub.status === 'submetida' || sub.status === 'corrigida') {
-          setSubmetida(true)
           setNotaFinal(sub.nota)
+          setFase('resultado')
+        } else {
+          setFase('prova') // retomar prova em andamento — pula intro
         }
+      } else if (modoResultado) {
+        setFase('resultado')
+      } else {
+        setFase('intro') // primeira vez — mostrar revisão
       }
-
-      if (!modoResultado && !sub) {
-        const nova = await iniciarSubmissao(perfil!.uid, perfil!.nome, provaId, p.titulo, turmaId, p.totalPontos)
-        setSubmissaoId(nova.id)
-      }
-      setCarregando(false)
     }
     init()
   }, [perfil, provaId, turmaId, modoResultado])
+
+  async function handleIniciarProva() {
+    if (!prova || !perfil) return
+    setIniciando(true)
+    const nova = await iniciarSubmissao(perfil.uid, perfil.nome, provaId, prova.titulo, turmaId, prova.totalPontos)
+    setSubmissaoId(nova.id)
+    setFase('prova')
+    setIniciando(false)
+    window.scrollTo({ top: 0 })
+  }
 
   const handleAnswer = useCallback((answer: QuestionAnswer) => {
     setRespostas(prev => {
@@ -108,11 +121,13 @@ export default function ProvaPage() {
     const nota = calcularNota(prova.questoes, respostas)
     await submeterProva(submissaoId, respostas, nota, prova.totalPontos)
     setNotaFinal(nota)
-    setSubmetida(true)
+    setFase('resultado')
     setSubmetendo(false)
+    window.scrollTo({ top: 0 })
   }
 
-  if (carregando) {
+  // ── Carregando ───────────────────────────────────────────────
+  if (fase === 'carregando') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -120,8 +135,34 @@ export default function ProvaPage() {
     )
   }
 
-  if (!prova) return <div className="min-h-screen flex items-center justify-center text-gray-500">Prova não encontrada.</div>
+  if (!prova) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-500">Prova não encontrada.</div>
+  }
 
+  // ── Intro / Onboarding ───────────────────────────────────────
+  if (fase === 'intro') {
+    const intro = introsProvas[provaId]
+    if (intro) {
+      return (
+        <OnboardingProva
+          prova={prova}
+          intro={intro}
+          onIniciar={handleIniciarProva}
+          iniciando={iniciando}
+        />
+      )
+    }
+    // Prova sem intro cadastrada — inicia direto
+    handleIniciarProva()
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  // ── Prova e Resultado ────────────────────────────────────────
+  const submetida = fase === 'resultado'
   const percentual = notaFinal !== null ? Math.round((notaFinal / prova.totalPontos) * 100) : null
   const respondidas = respostas.length
 
