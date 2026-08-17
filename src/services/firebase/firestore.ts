@@ -9,7 +9,6 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
   Timestamp,
   arrayUnion,
   arrayRemove,
@@ -44,9 +43,11 @@ export async function criarTurma(
 }
 
 export async function listarTurmasProfessor(professorId: string): Promise<Turma[]> {
-  const q = query(collection(db, 'turmas'), where('professorId', '==', professorId), orderBy('criadaEm', 'desc'))
+  const q = query(collection(db, 'turmas'), where('professorId', '==', professorId))
   const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Turma))
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Turma))
+    .sort((a, b) => b.criadaEm.toMillis() - a.criadaEm.toMillis())
 }
 
 export async function listarTurmasAluno(alunoId: string): Promise<Turma[]> {
@@ -108,9 +109,11 @@ export async function salvarProvaComId(prova: Omit<Prova, 'criadaEm'>): Promise<
 }
 
 export async function listarProvasProfessor(professorId: string): Promise<Prova[]> {
-  const q = query(collection(db, 'provas'), where('professorId', '==', professorId), orderBy('criadaEm', 'desc'))
+  const q = query(collection(db, 'provas'), where('professorId', '==', professorId))
   const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Prova))
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Prova))
+    .sort((a, b) => b.criadaEm.toMillis() - a.criadaEm.toMillis())
 }
 
 export async function buscarProva(provaId: string): Promise<Prova | null> {
@@ -229,7 +232,9 @@ export async function listarSubmissoesDaTurma(
 }
 
 export async function listarSubmissoesAluno(alunoId: string): Promise<Submissao[]> {
-  const q = query(collection(db, 'submissoes'), where('alunoId', '==', alunoId), orderBy('iniciadaEm', 'desc'))
+  const q = query(collection(db, 'submissoes'), where('alunoId', '==', alunoId))
   const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Submissao))
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Submissao))
+    .sort((a, b) => b.iniciadaEm.toMillis() - a.iniciadaEm.toMillis())
 }

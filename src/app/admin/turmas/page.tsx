@@ -24,9 +24,15 @@ export default function TurmasPage() {
   async function carregar() {
     if (!perfil) return
     setCarregando(true)
-    const ts = await listarTurmasProfessor(perfil.uid)
-    setTurmas(ts)
-    setCarregando(false)
+    try {
+      const ts = await listarTurmasProfessor(perfil.uid)
+      setTurmas(ts)
+    } catch (e) {
+      console.error('Erro ao carregar turmas:', e)
+      setErro('Erro ao carregar turmas. Verifique o console.')
+    } finally {
+      setCarregando(false)
+    }
   }
 
   async function handleCriar(e: React.FormEvent) {
