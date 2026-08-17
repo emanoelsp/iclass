@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isProfessor() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
+    }
+
+    function isAluno() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'aluno';
+    }
+
+    match /users/{uid} {
+      allow read: if isAuth() && (request.auth.uid == uid || isProfessor());
+      allow create: if isAuth() && request.auth.uid == uid;
+      allow update: if isAuth() && request.auth.uid == uid;
+    }
+
+    match /turmas/{turmaId} {
+      allow read: if isAuth();
+      allow create, update, delete: if isProfessor() &&
+        (resource == null || resource.data.professorId == request.auth.uid);
+    }
+
+    match /provas/{provaId} {
+      allow read: if isAuth();
+      allow create, update, delete: if isProfessor() &&
+        (resource == null || resource.data.professorId == request.auth.uid);
+    }
+
+    match /turmaProvas/{tpId} {
+      allow read: if isAuth();
+      allow create, update, delete: if isProfessor();
+    }
+
+    match /submissoes/{subId} {
+      allow read: if isAuth() && (
+        resource.data.alunoId == request.auth.uid || isProfessor()
+      );
+      allow create: if isAluno() && request.auth.uid == request.resource.data.alunoId;
+      allow update: if isAuth() && (
+        resource.data.alunoId == request.auth.uid || isProfessor()
+      );
+    }
+  }
+}
