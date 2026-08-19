@@ -238,3 +238,23 @@ export async function listarSubmissoesAluno(alunoId: string): Promise<Submissao[
     .map(d => ({ id: d.id, ...d.data() } as Submissao))
     .sort((a, b) => b.iniciadaEm.toMillis() - a.iniciadaEm.toMillis())
 }
+
+export async function listarTodasSubmissoesEntregues(): Promise<Submissao[]> {
+  const q = query(
+    collection(db, 'submissoes'),
+    where('status', 'in', ['submetida', 'corrigida'])
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Submissao))
+}
+
+export async function atualizarNotaSubmissao(
+  submissaoId: string,
+  nota: number,
+  notaMaxima: number
+): Promise<void> {
+  await updateDoc(doc(db, 'submissoes', submissaoId), {
+    nota,
+    percentual: Math.round((nota / notaMaxima) * 100),
+  })
+}
