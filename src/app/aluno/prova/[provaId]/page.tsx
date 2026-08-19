@@ -9,6 +9,12 @@ import QuestionRenderer from '@/components/questions/QuestionRenderer'
 import OnboardingProva from '@/components/OnboardingProva'
 import { introsProvas } from '@/data/introProvas'
 
+const GABARITO_DURACAO_MS = 3 * 60 * 1000
+
+function normalizeTexto(s: string): string {
+  return s.replace(/\s+/g, ' ').trim()
+}
+
 function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number {
   let total = 0
   for (const q of questoes) {
@@ -18,14 +24,15 @@ function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number
     if (q.type === 'fill-blank') {
       const vals = resp.value as Record<string, string>
       const certas = q.blanks.filter(b => {
-        const v = vals[b.id] ?? ''
-        return b.caseSensitive ? v.trim() === b.answer.trim() : v.toLowerCase().trim() === b.answer.toLowerCase().trim()
+        const v = normalizeTexto(vals[b.id] ?? '')
+        const a = normalizeTexto(b.answer)
+        return b.caseSensitive ? v === a : v.toLowerCase() === a.toLowerCase()
       })
       total += (certas.length / q.blanks.length) * q.pontos
     } else if (q.type === 'code-completion') {
       const gaps = q.codeLines.filter((l): l is import('@/types').CodeGap => typeof l === 'object')
       const vals = resp.value as Record<string, string>
-      const certas = gaps.filter(g => (vals[g.id] ?? '').toLowerCase().trim() === g.answer.toLowerCase().trim())
+      const certas = gaps.filter(g => normalizeTexto(vals[g.id] ?? '').toLowerCase() === normalizeTexto(g.answer).toLowerCase())
       total += (certas.length / gaps.length) * q.pontos
     } else if (q.type === 'match-columns') {
       const vals = resp.value as Record<string, string>
@@ -37,7 +44,7 @@ function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number
       total += (certas.length / q.correctOrder.length) * q.pontos
     } else if (q.type === 'scenario-trace') {
       const vals = resp.value as Record<string, string>
-      const certas = q.subQuestions.filter(sq => (vals[sq.id] ?? '').toLowerCase().trim() === sq.answer.toLowerCase().trim())
+      const certas = q.subQuestions.filter(sq => normalizeTexto(vals[sq.id] ?? '').toLowerCase() === normalizeTexto(sq.answer).toLowerCase())
       total += (certas.length / q.subQuestions.length) * q.pontos
     } else if (q.type === 'error-detection') {
       const vals = resp.value as Record<string, string>
@@ -68,6 +75,8 @@ export default function ProvaPage() {
   const [notaFinal, setNotaFinal] = useState<number | null>(null)
   const [iniciando, setIniciando] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [gabaritoExpiraEm, setGabaritoExpiraEm] = useState<number | null>(null)
+  const [agora, setAgora] = useState(() => Date.now())
 
   useEffect(() => {
     if (!perfil) return
@@ -85,6 +94,10 @@ export default function ProvaPage() {
         if (sub.status === 'submetida' || sub.status === 'corrigida') {
           setNotaFinal(sub.nota)
           setFase('resultado')
+          if (sub.submetidaEm) {
+            const expira = sub.submetidaEm.toMillis() + GABARITO_DURACAO_MS
+            if (Date.now() < expira) setGabaritoExpiraEm(expira)
+          }
         } else {
           setFase('prova') // retomar prova em andamento — pula intro
         }
@@ -96,6 +109,12 @@ export default function ProvaPage() {
     }
     init()
   }, [perfil, provaId, turmaId, modoResultado])
+
+  useEffect(() => {
+    if (!gabaritoExpiraEm) return
+    const id = setInterval(() => setAgora(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [gabaritoExpiraEm])
 
   async function handleIniciarProva() {
     if (!prova || !perfil) return
@@ -122,6 +141,7 @@ export default function ProvaPage() {
     await submeterProva(submissaoId, respostas, nota, prova.totalPontos)
     setNotaFinal(nota)
     setFase('resultado')
+    setGabaritoExpiraEm(Date.now() + GABARITO_DURACAO_MS)
     setSubmetendo(false)
     window.scrollTo({ top: 0 })
   }
@@ -165,6 +185,9 @@ export default function ProvaPage() {
   const submetida = fase === 'resultado'
   const percentual = notaFinal !== null ? Math.round((notaFinal / prova.totalPontos) * 100) : null
   const respondidas = respostas.length
+  const showGabarito = gabaritoExpiraEm !== null && agora < gabaritoExpiraEm
+  const tempoGabaritoSeg = gabaritoExpiraEm ? Math.max(0, Math.ceil((gabaritoExpiraEm - agora) / 1000)) : 0
+  const tempoGabaritoStr = `${String(Math.floor(tempoGabaritoSeg / 60)).padStart(2, '0')}:${String(tempoGabaritoSeg % 60).padStart(2, '0')}`
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -204,7 +227,13 @@ export default function ProvaPage() {
               <p className="font-semibold text-lg">
                 {(percentual ?? 0) >= 60 ? '🎉 Aprovado!' : '📚 Estude mais!'} Você acertou {percentual}%
               </p>
-              <p className="text-sm text-gray-600 mt-0.5">Veja abaixo as respostas corretas destacadas</p>
+              {showGabarito ? (
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Gabarito disponível por <span className="font-mono font-semibold text-indigo-700">{tempoGabaritoStr}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 mt-0.5">Tempo de revisão encerrado.</p>
+              )}
             </div>
             <button onClick={() => router.push(`/aluno/turma/${turmaId}`)}
               className="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
@@ -224,7 +253,7 @@ export default function ProvaPage() {
             onAnswer={handleAnswer}
             readonly={submetida}
             previousAnswer={respostas.find(r => r.questionId === q.id)}
-            showGabarito={submetida}
+            showGabarito={showGabarito}
           />
         ))}
 
