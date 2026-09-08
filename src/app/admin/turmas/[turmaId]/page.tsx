@@ -223,6 +223,7 @@ export default function TurmaDetalhePage() {
                           <th className="px-5 py-3 text-left text-gray-600 font-medium">Aluno</th>
                           <th className="px-5 py-3 text-right text-gray-600 font-medium">Nota</th>
                           <th className="px-5 py-3 text-right text-gray-600 font-medium">%</th>
+                          <th className="px-5 py-3 text-right text-gray-600 font-medium">Entregue em</th>
                           <th className="px-5 py-3 text-right text-gray-600 font-medium">Status</th>
                         </tr>
                       </thead>
@@ -239,6 +240,11 @@ export default function TurmaDetalhePage() {
                                   {sub.percentual}%
                                 </span>
                               ) : '—'}
+                            </td>
+                            <td className="px-5 py-3 text-right text-gray-500 text-xs whitespace-nowrap">
+                              {sub.submetidaEm
+                                ? sub.submetidaEm.toDate().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                : '—'}
                             </td>
                             <td className="px-5 py-3 text-right">
                               <span className={`text-xs px-2 py-1 rounded-full font-medium
