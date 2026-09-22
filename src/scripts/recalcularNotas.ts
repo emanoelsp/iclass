@@ -37,7 +37,11 @@ const db = getFirestore(app)
 // ── Mesma lógica da page.tsx ──────────────────────────────────────────────────
 
 function normalizeTexto(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
+  return s
+    .replace(/\s+/g, ' ')
+    .trim()
+    // ignora espaçamento cosmético ao redor de pontuação de sintaxe: { doc } === {doc}
+    .replace(/\s*([{}()[\],;:=<>])\s*/g, '$1')
 }
 
 type CodeGap = { id: string; answer: string; width: number; hint?: string }

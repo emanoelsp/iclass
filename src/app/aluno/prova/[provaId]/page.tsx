@@ -12,7 +12,11 @@ import { introsProvas } from '@/data/introProvas'
 const GABARITO_DURACAO_MS = 3 * 60 * 1000
 
 function normalizeTexto(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
+  return s
+    .replace(/\s+/g, ' ')
+    .trim()
+    // ignora espaçamento cosmético ao redor de pontuação de sintaxe: { doc } === {doc}
+    .replace(/\s*([{}()[\],;:=<>])\s*/g, '$1')
 }
 
 function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number {

@@ -12,7 +12,11 @@ import { Question, QuestionAnswer } from '@/types'
 // ── Mesma lógica de calcularNota da página de prova ─────────────────────────
 
 function normalizeTexto(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
+  return s
+    .replace(/\s+/g, ' ')
+    .trim()
+    // ignora espaçamento cosmético ao redor de pontuação de sintaxe: { doc } === {doc}
+    .replace(/\s*([{}()[\],;:=<>])\s*/g, '$1')
 }
 
 function calcularNota(questoes: Question[], respostas: QuestionAnswer[]): number {
